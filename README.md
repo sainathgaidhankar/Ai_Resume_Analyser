@@ -1,87 +1,58 @@
-# Welcome to React Router!
+# AI Resume Analyzer
 
-A modern, production-ready template for building full-stack React applications using React Router.
-
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+AI Resume Analyzer is a React and React Router application that lets users upload a PDF resume, store it with Puter.js, and receive AI-generated ATS-style feedback.
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- Browser-based authentication with Puter.js
+- Resume PDF upload and storage
+- PDF-to-image conversion for previewing resumes
+- AI-generated feedback with ATS scoring and improvement tips
+- Resume history saved in Puter KV storage
+
+## Tech Stack
+
+- React 19
+- React Router 7
+- TypeScript
+- Tailwind CSS
+- Zustand
+- pdfjs-dist
+- Puter.js
 
 ## Getting Started
 
-### Installation
+### Prerequisites
 
-Install the dependencies:
+- Node.js
+- npm
+
+### Install
 
 ```bash
 npm install
 ```
 
-### Development
-
-Start the development server with HMR:
+### Run in development
 
 ```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
+### Typecheck
 
 ```bash
-npm run build
+npm run typecheck
 ```
 
-## Deployment
+## Project Structure
 
-### Docker Deployment
+- `app/`: routes, components, and client-side logic
+- `constants/`: prompt and sample data definitions
+- `public/`: static assets
+- `types/`: shared TypeScript declarations
 
-To build and run using Docker:
+## Notes
 
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+- Resume analysis depends on Puter.js being available in the browser.
+- Uploaded resume metadata and feedback are stored through Puter KV APIs.
