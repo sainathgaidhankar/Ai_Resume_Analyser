@@ -35,6 +35,21 @@ const Summary = ({ feedback }: { feedback: Feedback }) => {
                 </div>
             </div>
 
+            {feedback.jobMatch && (
+                <div className="mx-4 mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900">Target Role Match</h3>
+                            <p className="text-sm text-gray-600">
+                                {feedback.jobMatch.matchedKeywords.length} matched keywords and{" "}
+                                {feedback.jobMatch.missingKeywords.length} missing keywords identified.
+                            </p>
+                        </div>
+                        <ScoreBadge score={feedback.jobMatch.score} />
+                    </div>
+                </div>
+            )}
+
             <Category title="Tone & Style" score={feedback.toneAndStyle.score} />
             <Category title="Content" score={feedback.content.score} />
             <Category title="Structure" score={feedback.structure.score} />

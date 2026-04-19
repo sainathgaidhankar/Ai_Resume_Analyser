@@ -181,61 +181,108 @@ export const resumes: Resume[] = [
     },
 ];
 
-export const AIResponseFormat = `
-      interface Feedback {
-      overallScore: number; //max 100
-      ATS: {
-        score: number; //rate based on ATS suitability
-        tips: {
-          type: "good" | "improve";
-          tip: string; //give 3-4 tips
-        }[];
-      };
-      toneAndStyle: {
-        score: number; //max 100
-        tips: {
-          type: "good" | "improve";
-          tip: string; //make it a short "title" for the actual explanation
-          explanation: string; //explain in detail here
-        }[]; //give 3-4 tips
-      };
-      content: {
-        score: number; //max 100
-        tips: {
-          type: "good" | "improve";
-          tip: string; //make it a short "title" for the actual explanation
-          explanation: string; //explain in detail here
-        }[]; //give 3-4 tips
-      };
-      structure: {
-        score: number; //max 100
-        tips: {
-          type: "good" | "improve";
-          tip: string; //make it a short "title" for the actual explanation
-          explanation: string; //explain in detail here
-        }[]; //give 3-4 tips
-      };
-      skills: {
-        score: number; //max 100
-        tips: {
-          type: "good" | "improve";
-          tip: string; //make it a short "title" for the actual explanation
-          explanation: string; //explain in detail here
-        }[]; //give 3-4 tips
-      };
-    }`;
+export const AIResponseFormat = `{
+  "overallScore": 0,
+  "jobMatch": {
+    "score": 0,
+    "summary": "",
+    "matchedKeywords": [],
+    "missingKeywords": []
+  },
+  "sectionAnalysis": {
+    "detectedSections": [
+      {
+        "name": "",
+        "present": true,
+        "score": 0,
+        "importance": "core",
+        "strengths": [],
+        "improvements": []
+      }
+    ],
+    "missingSections": [],
+    "summary": ""
+  },
+  "rewriteSuggestions": [
+    {
+      "section": "",
+      "issue": "",
+      "original": "",
+      "improved": "",
+      "reason": ""
+    }
+  ],
+  "impactSuggestions": [
+    {
+      "section": "",
+      "weakPhrase": "",
+      "strongerVerb": "",
+      "measurableVersion": "",
+      "metricHint": ""
+    }
+  ],
+  "recommendations": {
+    "skills": [],
+    "certifications": [],
+    "projectIdeas": [],
+    "summary": ""
+  },
+  "interviewQuestions": [
+    {
+      "category": "",
+      "question": "",
+      "rationale": ""
+    }
+  ],
+  "ATS": { "score": 0, "tips": [{ "type": "good", "tip": "" }] },
+  "toneAndStyle": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
+  "content": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
+  "structure": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
+  "skills": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] }
+}`;
 
-export const prepareInstructions = ({jobTitle, jobDescription}: { jobTitle: string; jobDescription: string; }) =>
+const ANALYSIS_MODE_GUIDANCE: Record<
+    "software" | "marketing" | "finance" | "data-science",
+    string
+> = {
+    software:
+        "Focus on programming languages, frameworks, tools, debugging, architecture, project impact, problem solving, and engineering best practices.",
+    marketing:
+        "Focus on campaign execution, branding, audience engagement, SEO or SEM, content quality, communication, and quantified growth outcomes.",
+    finance:
+        "Focus on financial analysis, reporting, forecasting, modeling, spreadsheet proficiency, data accuracy, compliance awareness, and quantified business value.",
+    "data-science":
+        "Focus on statistics, machine learning, experimentation, SQL, Python or analytics tools, model performance, data storytelling, and insight-driven impact.",
+};
+
+export const getAnalysisModeGuidance = (
+    analysisMode: "software" | "marketing" | "finance" | "data-science"
+) => ANALYSIS_MODE_GUIDANCE[analysisMode];
+
+export const prepareInstructions = ({
+    jobTitle,
+    jobDescription,
+    targetKeywords = [],
+    analysisMode = "software",
+    compact = false,
+}: {
+    jobTitle: string;
+    jobDescription: string;
+    targetKeywords?: string[];
+    analysisMode?: "software" | "marketing" | "finance" | "data-science";
+    compact?: boolean;
+}) =>
     `You are an expert in ATS (Applicant Tracking System) and resume analysis.
-      Please analyze and rate this resume and suggest how to improve it.
-      The rating can be low if the resume is bad.
-      Be thorough and detailed. Don't be afraid to point out any mistakes or areas for improvement.
-      If there is a lot to improve, don't hesitate to give low scores. This is to help the user to improve their resume.
-      If available, use the job description for the job user is applying to to give more detailed feedback.
-      If provided, take the job description into consideration.
+      Analyze this resume for the target job and return structured JSON only.
+      The analysis mode is: ${analysisMode}
+      Mode guidance: ${getAnalysisModeGuidance(analysisMode)}
       The job title is: ${jobTitle}
       The job description is: ${jobDescription}
-      Provide the feedback using the following format:
+      The prioritized target keywords are: ${targetKeywords.join(", ") || "None provided"}
+      Use the prioritized target keywords for matched and missing keyword analysis.
+      Detect major sections such as Summary, Education, Experience, Projects, Skills, and Certifications.
+      Give concise but useful rewrite suggestions, impact suggestions, recommendations, and interview questions.
+      ${compact ? "Keep explanations short so the full JSON fits in one response." : "Be detailed but stay concise enough to fit in one JSON response."}
+      Use this exact JSON shape:
       ${AIResponseFormat}
-      Return the analysis as an JSON object, without any other text and without the backticks.
-      Do not include any other text or comments.`;
+      Return valid JSON only. No markdown. No backticks. No extra text.`;

@@ -1,5 +1,8 @@
 .DS_Store
 /node_modules/
+*.pptx
+report*.docx
+certificate*.docx
 
 # React Router
 /.react-router/

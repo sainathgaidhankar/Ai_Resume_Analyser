@@ -4,6 +4,14 @@ import {usePuterStore} from "~/lib/puter";
 import Summary from "~/components/Summary";
 import ATS from "~/components/ATS";
 import Details from "~/components/Details";
+import StatusPanel from "~/components/StatusPanel";
+import JobMatch from "~/components/JobMatch";
+import SectionAnalysis from "~/components/SectionAnalysis";
+import RewriteSuggestions from "~/components/RewriteSuggestions";
+import ImpactSuggestions from "~/components/ImpactSuggestions";
+import Recommendations from "~/components/Recommendations";
+import InterviewQuestions from "~/components/InterviewQuestions";
+import {openDownloadableReport} from "~/lib/report";
 
 export const meta = () => ([
     { title: 'Resumind | Review ' },
@@ -11,11 +19,13 @@ export const meta = () => ([
 ])
 
 const Resume = () => {
-    const { auth, isLoading, fs, kv } = usePuterStore();
+    const { auth, isLoading, fs, kv, error } = usePuterStore();
     const { id } = useParams();
     const [imageUrl, setImageUrl] = useState('');
     const [resumeUrl, setResumeUrl] = useState('');
     const [feedback, setFeedback] = useState<Feedback | null>(null);
+    const [analysisMode, setAnalysisMode] = useState<Resume["analysisMode"]>();
+    const [resumeData, setResumeData] = useState<Resume | null>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -43,6 +53,8 @@ const Resume = () => {
             setImageUrl(imageUrl);
 
             setFeedback(data.feedback);
+            setAnalysisMode(data.analysisMode);
+            setResumeData(data);
             console.log({resumeUrl, imageUrl, feedback: data.feedback });
         }
 
@@ -73,14 +85,58 @@ const Resume = () => {
                 </section>
                 <section className="feedback-section">
                     <h2 className="text-4xl !text-black font-bold">Resume Review</h2>
+                    {analysisMode && (
+                        <p className="mt-2 text-sm font-medium uppercase tracking-wide text-slate-500">
+                            Analysis mode: {analysisMode.replace("-", " ")}
+                        </p>
+                    )}
+                    {resumeData && feedback && (
+                        <div className="mt-4">
+                            <button
+                                className="primary-button"
+                                type="button"
+                                onClick={() => openDownloadableReport({ resume: resumeData, feedback })}
+                            >
+                                Open Downloadable Report
+                            </button>
+                        </div>
+                    )}
                     {feedback ? (
                         <div className="flex flex-col gap-8 animate-in fade-in duration-1000">
                             <Summary feedback={feedback} />
+                            {feedback.jobMatch && <JobMatch jobMatch={feedback.jobMatch} />}
+                            {feedback.sectionAnalysis && (
+                                <SectionAnalysis sectionAnalysis={feedback.sectionAnalysis} />
+                            )}
+                            {feedback.rewriteSuggestions && feedback.rewriteSuggestions.length > 0 && (
+                                <RewriteSuggestions suggestions={feedback.rewriteSuggestions} />
+                            )}
+                            {feedback.impactSuggestions && feedback.impactSuggestions.length > 0 && (
+                                <ImpactSuggestions suggestions={feedback.impactSuggestions} />
+                            )}
+                            {feedback.recommendations && (
+                                <Recommendations recommendations={feedback.recommendations} />
+                            )}
+                            {feedback.interviewQuestions && feedback.interviewQuestions.length > 0 && (
+                                <InterviewQuestions questions={feedback.interviewQuestions} />
+                            )}
                             <ATS score={feedback.ATS.score || 0} suggestions={feedback.ATS.tips || []} />
                             <Details feedback={feedback} />
                         </div>
+                    ) : error ? (
+                        <StatusPanel
+                            title="Unable to load resume review"
+                            description={error}
+                            tone="error"
+                        />
                     ) : (
-                        <img src="/images/resume-scan-2.gif" className="w-full" />
+                        <div className="flex flex-col gap-4">
+                            <img src="/images/resume-scan-2.gif" className="w-full" />
+                            <StatusPanel
+                                title="Loading resume review"
+                                description="Fetching your resume file, preview image, and stored AI feedback."
+                            />
+                        </div>
                     )}
                 </section>
             </div>

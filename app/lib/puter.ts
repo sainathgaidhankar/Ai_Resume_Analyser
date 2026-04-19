@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getUserRole } from "../../constants/admin";
 
 declare global {
     interface Window {
@@ -49,6 +50,7 @@ interface PuterStore {
     auth: {
         user: PuterUser | null;
         isAuthenticated: boolean;
+        role: "student" | "admin";
         signIn: () => Promise<void>;
         signOut: () => Promise<void>;
         refreshUser: () => Promise<void>;
@@ -107,6 +109,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
             auth: {
                 user: null,
                 isAuthenticated: false,
+                role: "student",
                 signIn: get().auth.signIn,
                 signOut: get().auth.signOut,
                 refreshUser: get().auth.refreshUser,
@@ -133,6 +136,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
                     auth: {
                         user,
                         isAuthenticated: true,
+                        role: getUserRole(user.username),
                         signIn: get().auth.signIn,
                         signOut: get().auth.signOut,
                         refreshUser: get().auth.refreshUser,
@@ -147,6 +151,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
                     auth: {
                         user: null,
                         isAuthenticated: false,
+                        role: "student",
                         signIn: get().auth.signIn,
                         signOut: get().auth.signOut,
                         refreshUser: get().auth.refreshUser,
@@ -198,6 +203,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
                 auth: {
                     user: null,
                     isAuthenticated: false,
+                    role: "student",
                     signIn: get().auth.signIn,
                     signOut: get().auth.signOut,
                     refreshUser: get().auth.refreshUser,
@@ -227,6 +233,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
                 auth: {
                     user,
                     isAuthenticated: true,
+                    role: getUserRole(user.username),
                     signIn: get().auth.signIn,
                     signOut: get().auth.signOut,
                     refreshUser: get().auth.refreshUser,
@@ -352,7 +359,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
             ],
             {
                 model: "claude-sonnet-4",
-                max_tokens: 2000,
+                max_tokens: 4500,
             }
         ) as Promise<AIResponse | undefined>;
     };
@@ -421,6 +428,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         auth: {
             user: null,
             isAuthenticated: false,
+            role: "student",
             signIn,
             signOut,
             refreshUser,
