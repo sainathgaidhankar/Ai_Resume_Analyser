@@ -12,6 +12,18 @@ import ImpactSuggestions from "~/components/ImpactSuggestions";
 import Recommendations from "~/components/Recommendations";
 import InterviewQuestions from "~/components/InterviewQuestions";
 import {openDownloadableReport} from "~/lib/report";
+import {buildKeywordPromptBlock, extractTargetKeywords} from "~/lib/jobMatch";
+import {
+    hasAnyPositiveScore,
+    hasMeaningfulFeedback,
+    parseFeedbackResponse,
+    readFeedbackText,
+} from "~/lib/feedback";
+import {prepareInstructions} from "../../constants";
+
+type StoredResume = Resume & {
+    jobDescription?: string;
+};
 
 export const meta = () => ([
     { title: 'Resumind | Review ' },
@@ -19,46 +31,119 @@ export const meta = () => ([
 ])
 
 const Resume = () => {
-    const { auth, isLoading, fs, kv, error } = usePuterStore();
+    const { auth, isLoading, fs, kv, ai, error } = usePuterStore();
     const { id } = useParams();
     const [imageUrl, setImageUrl] = useState('');
     const [resumeUrl, setResumeUrl] = useState('');
     const [feedback, setFeedback] = useState<Feedback | null>(null);
     const [analysisMode, setAnalysisMode] = useState<Resume["analysisMode"]>();
     const [resumeData, setResumeData] = useState<Resume | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
-        if(!isLoading && !auth.isAuthenticated) navigate(`/auth?next=/resume/${id}`);
-    }, [isLoading])
+        if (!isLoading && !auth.isAuthenticated) navigate(`/auth?next=/resume/${id}`);
+    }, [auth.isAuthenticated, id, isLoading, navigate]);
 
     useEffect(() => {
+        let isCancelled = false;
+        let nextResumeUrl: string | null = null;
+        let nextImageUrl: string | null = null;
+
         const loadResume = async () => {
-            const resume = await kv.get(`resume:${id}`);
+            try {
+                setLoadError(null);
+                setImageUrl('');
+                setResumeUrl('');
+                setFeedback(null);
+                setAnalysisMode(undefined);
+                setResumeData(null);
 
-            if(!resume) return;
+                if (!id) {
+                    throw new Error("Missing resume id.");
+                }
 
-            const data = JSON.parse(resume);
+                const resume = await kv.get(`resume:${id}`);
+                if (!resume) {
+                    throw new Error("No saved review was found for this resume.");
+                }
 
-            const resumeBlob = await fs.read(data.resumePath);
-            if(!resumeBlob) return;
+                const data = JSON.parse(resume) as StoredResume;
+                if (isCancelled) return;
 
-            const pdfBlob = new Blob([resumeBlob], { type: 'application/pdf' });
-            const resumeUrl = URL.createObjectURL(pdfBlob);
-            setResumeUrl(resumeUrl);
+                setAnalysisMode(data.analysisMode);
+                setResumeData(data);
 
-            const imageBlob = await fs.read(data.imagePath);
-            if(!imageBlob) return;
-            const imageUrl = URL.createObjectURL(imageBlob);
-            setImageUrl(imageUrl);
+                const [resumeBlobResult, imageBlobResult] = await Promise.allSettled([
+                    fs.read(data.resumePath),
+                    fs.read(data.imagePath),
+                ]);
 
-            setFeedback(data.feedback);
-            setAnalysisMode(data.analysisMode);
-            setResumeData(data);
-            console.log({resumeUrl, imageUrl, feedback: data.feedback });
+                if (isCancelled) return;
+
+                if (resumeBlobResult.status === "fulfilled" && resumeBlobResult.value) {
+                    const pdfBlob = new Blob([resumeBlobResult.value], { type: 'application/pdf' });
+                    nextResumeUrl = URL.createObjectURL(pdfBlob);
+                    setResumeUrl(nextResumeUrl);
+                }
+
+                if (imageBlobResult.status === "fulfilled" && imageBlobResult.value) {
+                    nextImageUrl = URL.createObjectURL(imageBlobResult.value);
+                    setImageUrl(nextImageUrl);
+                }
+
+                if (data.feedback && hasAnyPositiveScore(data.feedback)) {
+                    setFeedback(data.feedback);
+                    return;
+                }
+
+                const targetKeywords = extractTargetKeywords(data.jobTitle || "", data.jobDescription || "");
+                const prompt = `${prepareInstructions({
+                    jobTitle: data.jobTitle || "Unknown role",
+                    jobDescription: data.jobDescription || "No job description was saved with this resume.",
+                    targetKeywords,
+                    analysisMode: data.analysisMode,
+                    compact: true,
+                })}
+
+${buildKeywordPromptBlock(targetKeywords)}`;
+
+                const response = await ai.feedback(data.resumePath, prompt);
+                const feedbackText = readFeedbackText(response);
+
+                if (!feedbackText) {
+                    console.error("Puter AI recovery response without readable text:", response);
+                    throw new Error("No usable AI feedback was found in storage or the recovery response.");
+                }
+
+                const recoveredFeedback = parseFeedbackResponse(feedbackText);
+                if (!hasMeaningfulFeedback(recoveredFeedback)) {
+                    throw new Error("The AI recovery response was received, but it did not contain usable feedback.");
+                }
+
+                const restoredResume = { ...data, feedback: recoveredFeedback };
+                const saved = await kv.set(`resume:${id}`, JSON.stringify(restoredResume));
+                if (!saved) {
+                    throw new Error("Recovered feedback could not be saved back to storage.");
+                }
+                if (isCancelled) return;
+
+                setFeedback(recoveredFeedback);
+                setResumeData(restoredResume);
+            } catch (err) {
+                if (isCancelled) return;
+                const message = err instanceof Error ? err.message : "Failed to load resume review.";
+                setLoadError(message);
+            }
         }
 
         loadResume();
+
+        return () => {
+            isCancelled = true;
+            if (nextResumeUrl) URL.revokeObjectURL(nextResumeUrl);
+            if (nextImageUrl) URL.revokeObjectURL(nextImageUrl);
+        };
     }, [id]);
 
     return (
@@ -103,6 +188,13 @@ const Resume = () => {
                     )}
                     {feedback ? (
                         <div className="flex flex-col gap-8 animate-in fade-in duration-1000">
+                            {loadError && (
+                                <StatusPanel
+                                    title="Partial review loaded"
+                                    description={loadError}
+                                    tone="warning"
+                                />
+                            )}
                             <Summary feedback={feedback} />
                             {feedback.jobMatch && <JobMatch jobMatch={feedback.jobMatch} />}
                             {feedback.sectionAnalysis && (
@@ -123,10 +215,10 @@ const Resume = () => {
                             <ATS score={feedback.ATS.score || 0} suggestions={feedback.ATS.tips || []} />
                             <Details feedback={feedback} />
                         </div>
-                    ) : error ? (
+                    ) : (loadError || error) ? (
                         <StatusPanel
                             title="Unable to load resume review"
-                            description={error}
+                            description={loadError || error || "Unable to load resume review."}
                             tone="error"
                         />
                     ) : (

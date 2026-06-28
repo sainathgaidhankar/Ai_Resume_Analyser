@@ -1,5 +1,12 @@
 const clampScore = (value: unknown) => {
-    const parsed = Number(value);
+    if (typeof value === "string") {
+        const match = value.match(/-?\d+(?:\.\d+)?/);
+        if (match) {
+            value = Number(match[0]);
+        }
+    }
+
+    const parsed = Math.round(Number(value));
 
     if (Number.isNaN(parsed)) return 0;
 
@@ -135,7 +142,7 @@ const normalizeATS = (
         : [],
 });
 
-export const extractJson = (value: string) => {
+const stripCodeFences = (value: string) => {
     const trimmed = value.trim();
 
     if (trimmed.startsWith("```")) {
@@ -144,18 +151,153 @@ export const extractJson = (value: string) => {
             .replace(/\s*```$/, "");
     }
 
-    const firstBrace = trimmed.indexOf("{");
-    const lastBrace = trimmed.lastIndexOf("}");
+    return trimmed;
+};
 
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        return trimmed.slice(firstBrace, lastBrace + 1);
+const nextSignificantChar = (value: string, startIndex: number) => {
+    for (let index = startIndex; index < value.length; index += 1) {
+        const char = value[index];
+        if (!/\s/.test(char)) return char;
+    }
+
+    return undefined;
+};
+
+const closeTokenFor = (token: string) => (token === "{" ? "}" : "]");
+
+const repairJsonCandidate = (value: string) => {
+    const startIndex = value.indexOf("{");
+
+    if (startIndex === -1) return value;
+
+    const source = value.slice(startIndex);
+    const output: string[] = [];
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+
+    for (let index = 0; index < source.length; index += 1) {
+        const char = source[index];
+
+        if (inString) {
+            if (escaped) {
+                output.push(char);
+                escaped = false;
+                continue;
+            }
+
+            if (char === "\\") {
+                output.push(char);
+                escaped = true;
+                continue;
+            }
+
+            if (char === '"') {
+                const next = nextSignificantChar(source, index + 1);
+                if (next === undefined || next === ":" || next === "," || next === "}" || next === "]") {
+                    output.push(char);
+                    inString = false;
+                } else {
+                    output.push("\\\"");
+                }
+                continue;
+            }
+
+            if (char === "\n") {
+                const next = nextSignificantChar(source, index + 1);
+                if (next === undefined || next === "," || next === "}" || next === "]" || next === '"') {
+                    output.push('"');
+                    inString = false;
+                } else {
+                    output.push("\\n");
+                }
+                continue;
+            }
+
+            if (char === "\r") {
+                const next = nextSignificantChar(source, index + 1);
+                if (next === undefined || next === "," || next === "}" || next === "]" || next === '"') {
+                    output.push('"');
+                    inString = false;
+                } else {
+                    output.push("\\r");
+                }
+                continue;
+            }
+
+            if (char === "\t") {
+                output.push("\\t");
+                continue;
+            }
+
+            output.push(char);
+            continue;
+        }
+
+        if (char === '"') {
+            output.push(char);
+            inString = true;
+            continue;
+        }
+
+        if (char === "{" || char === "[") {
+            stack.push(char);
+            output.push(char);
+            continue;
+        }
+
+        if (char === "}" || char === "]") {
+            const expected = char === "}" ? "{" : "[";
+
+            if (stack.length === 0) {
+                return output.join("");
+            }
+
+            if (stack[stack.length - 1] === expected) {
+                stack.pop();
+                output.push(char);
+                if (stack.length === 0) return output.join("");
+            }
+
+            continue;
+        }
+
+        if (char === ",") {
+            const next = nextSignificantChar(source, index + 1);
+            if (next === undefined || next === "}" || next === "]") {
+                continue;
+            }
+        }
+
+        output.push(char);
+    }
+
+    if (inString) {
+        output.push(escaped ? "\\\\" : '"');
+    }
+
+    while (stack.length > 0) {
+        output.push(closeTokenFor(stack.pop() as string));
+    }
+
+    return output.join("");
+};
+
+export const extractJson = (value: string) => {
+    const trimmed = stripCodeFences(value);
+
+    const firstBrace = trimmed.indexOf("{");
+
+    if (firstBrace !== -1) {
+        return repairJsonCandidate(trimmed);
     }
 
     return trimmed;
 };
 
 export const parseFeedbackResponse = (value: string): Feedback => {
-    const parsed = JSON.parse(extractJson(value)) as Partial<Feedback>;
+    const normalized = extractJson(value);
+    const parsed = JSON.parse(normalized) as Partial<Feedback>;
 
     return {
         overallScore: clampScore(parsed.overallScore),
@@ -225,6 +367,31 @@ export const parseFeedbackResponse = (value: string): Feedback => {
     };
 };
 
+export const readFeedbackText = (response: AIResponse | undefined) => {
+    const anyResponse = response as any;
+    const content =
+        anyResponse?.message?.content ??
+        anyResponse?.choices?.[0]?.message?.content ??
+        anyResponse?.text;
+
+    if (typeof content === "string") return content;
+
+    if (Array.isArray(content)) {
+        const text = content
+            .map((part) => {
+                if (typeof part === "string") return part;
+                if (part && typeof part.text === "string") return part.text;
+                return "";
+            })
+            .filter(Boolean)
+            .join("\n");
+
+        return text.length > 0 ? text : undefined;
+    }
+
+    return undefined;
+};
+
 export const hasMeaningfulFeedback = (feedback: Feedback) => {
     const categoryScores = [
         feedback.ATS.score,
@@ -250,3 +417,14 @@ export const hasMeaningfulFeedback = (feedback: Feedback) => {
 
     return hasNonZeroScore || hasTips || hasAdvancedContent;
 };
+
+export const hasAnyPositiveScore = (feedback: Feedback) =>
+    [
+        feedback.overallScore,
+        feedback.jobMatch?.score || 0,
+        feedback.ATS.score,
+        feedback.toneAndStyle.score,
+        feedback.content.score,
+        feedback.structure.score,
+        feedback.skills.score,
+    ].some((score) => score > 0);

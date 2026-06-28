@@ -182,63 +182,63 @@ export const resumes: Resume[] = [
 ];
 
 export const AIResponseFormat = `{
-  "overallScore": 0,
+  "overallScore": 78,
   "jobMatch": {
-    "score": 0,
-    "summary": "",
-    "matchedKeywords": [],
-    "missingKeywords": []
+    "score": 72,
+    "summary": "The resume aligns well with the core role requirements but still misses a few target keywords.",
+    "matchedKeywords": ["react", "typescript"],
+    "missingKeywords": ["testing", "accessibility"]
   },
   "sectionAnalysis": {
     "detectedSections": [
       {
-        "name": "",
+        "name": "Experience",
         "present": true,
-        "score": 0,
+        "score": 84,
         "importance": "core",
-        "strengths": [],
-        "improvements": []
+        "strengths": ["Clear ownership", "Relevant project scope"],
+        "improvements": ["Add stronger metrics", "Show broader impact"]
       }
     ],
     "missingSections": [],
-    "summary": ""
+    "summary": "Experience and skills are present, but impact is under-explained in places."
   },
   "rewriteSuggestions": [
     {
-      "section": "",
-      "issue": "",
-      "original": "",
-      "improved": "",
-      "reason": ""
+      "section": "Experience",
+      "issue": "Bullet is too vague",
+      "original": "Worked on a dashboard feature.",
+      "improved": "Built a dashboard feature that reduced manual reporting time by 30%.",
+      "reason": "Adds impact, clarity, and measurable outcome."
     }
   ],
   "impactSuggestions": [
     {
-      "section": "",
-      "weakPhrase": "",
-      "strongerVerb": "",
-      "measurableVersion": "",
-      "metricHint": ""
+      "section": "Projects",
+      "weakPhrase": "helped improve",
+      "strongerVerb": "reduced",
+      "measurableVersion": "Reduced page load time by 40% through component caching and code splitting.",
+      "metricHint": "Add a specific percentage, duration, or scale."
     }
   ],
   "recommendations": {
-    "skills": [],
-    "certifications": [],
-    "projectIdeas": [],
-    "summary": ""
+    "skills": ["testing", "system design"],
+    "certifications": ["AWS Certified Developer"],
+    "projectIdeas": ["Build a searchable job tracker", "Add automated resume scoring dashboards"],
+    "summary": "Build more evidence of impact and add one or two supporting technical skills."
   },
   "interviewQuestions": [
     {
-      "category": "",
-      "question": "",
-      "rationale": ""
+      "category": "Experience",
+      "question": "How did you measure the impact of this project?",
+      "rationale": "This checks whether the resume claims are backed by results."
     }
   ],
-  "ATS": { "score": 0, "tips": [{ "type": "good", "tip": "" }] },
-  "toneAndStyle": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
-  "content": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
-  "structure": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] },
-  "skills": { "score": 0, "tips": [{ "type": "good", "tip": "", "explanation": "" }] }
+  "ATS": { "score": 80, "tips": [{ "type": "good", "tip": "Keyword coverage is decent" }] },
+  "toneAndStyle": { "score": 74, "tips": [{ "type": "good", "tip": "Tone is professional", "explanation": "The language stays appropriate for a technical resume." }] },
+  "content": { "score": 76, "tips": [{ "type": "good", "tip": "Experience is relevant", "explanation": "The resume includes directly related work." }] },
+  "structure": { "score": 82, "tips": [{ "type": "good", "tip": "Structure is easy to scan", "explanation": "Sections are separated clearly." }] },
+  "skills": { "score": 79, "tips": [{ "type": "good", "tip": "Core skills are visible", "explanation": "The resume makes the primary stack easy to identify." }] }
 }`;
 
 const ANALYSIS_MODE_GUIDANCE: Record<
@@ -282,6 +282,7 @@ export const prepareInstructions = ({
       Use the prioritized target keywords for matched and missing keyword analysis.
       Detect major sections such as Summary, Education, Experience, Projects, Skills, and Certifications.
       Give concise but useful rewrite suggestions, impact suggestions, recommendations, and interview questions.
+      All score fields must be plain integers from 0 to 100. Do not return scores as strings, percentages, or values like "82/100".
       ${compact ? "Keep explanations short so the full JSON fits in one response." : "Be detailed but stay concise enough to fit in one JSON response."}
       Use this exact JSON shape:
       ${AIResponseFormat}

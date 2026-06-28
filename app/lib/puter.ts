@@ -328,8 +328,12 @@ export const usePuterStore = create<PuterStore>((set, get) => {
             setError("Puter.js not available");
             return;
         }
-        // return puter.ai.chat(prompt, imageURL, testMode, options);
-        return puter.ai.chat(prompt, imageURL, testMode, options) as Promise<
+
+        if (typeof imageURL === "object" && imageURL !== null && !Array.isArray(imageURL) && testMode === undefined && options === undefined) {
+            return puter.ai.chat(prompt, false as any, imageURL as any) as Promise<AIResponse | undefined>;
+        }
+
+        return puter.ai.chat(prompt, imageURL as any, testMode, options as any) as Promise<
             AIResponse | undefined
         >;
     };
@@ -341,27 +345,48 @@ export const usePuterStore = create<PuterStore>((set, get) => {
             return;
         }
 
-        return puter.ai.chat(
-            [
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "file",
-                            puter_path: path,
-                        },
-                        {
-                            type: "text",
-                            text: message,
-                        },
-                    ],
-                },
-            ],
+        const prompt: ChatMessage[] = [
             {
-                model: "claude-sonnet-4",
-                max_tokens: 4500,
+                role: "user",
+                content: [
+                    {
+                        type: "file",
+                        puter_path: path,
+                    },
+                    {
+                        type: "text",
+                        text: message,
+                    },
+                ],
+            },
+        ];
+
+        const models = ["claude-sonnet-4-5", "claude-sonnet-4-20250514"] as const;
+        let lastError: unknown;
+
+        for (const model of models) {
+            try {
+                const response = await puter.ai.chat(prompt, {
+                    model,
+                    max_tokens: 4500,
+                } as any);
+
+                return response as AIResponse | undefined;
+            } catch (error) {
+                lastError = error;
             }
-        ) as Promise<AIResponse | undefined>;
+        }
+
+        const messageText =
+            lastError instanceof Error
+                ? lastError.message
+                : typeof lastError === "string"
+                  ? lastError
+                  : lastError && typeof lastError === "object" && "message" in lastError
+                    ? String((lastError as { message?: unknown }).message || "Puter AI request failed")
+                    : "Puter AI request failed";
+
+        throw new Error(messageText);
     };
 
     const img2txt = async (image: string | File | Blob, testMode?: boolean) => {
