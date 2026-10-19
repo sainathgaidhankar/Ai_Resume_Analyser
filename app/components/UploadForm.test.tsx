@@ -1,6 +1,7 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import Recommendations from "./Recommendations";
 import UploadForm from "./UploadForm";
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ vi.mock("~/lib/puter", () => ({
 
 vi.mock("~/lib/pdf2img", () => ({
     convertPdfToImage: (file: File) => mocks.convertPdfToImage(file),
+    extractPdfText: async () => "Senior frontend developer with React, TypeScript, and UI delivery experience.",
 }));
 
 vi.mock("react-dropzone", () => ({
@@ -78,6 +80,24 @@ describe("UploadForm", () => {
         });
     });
 
+    it("renders recommendation summaries as clean, scannable steps", () => {
+        render(
+            <Recommendations
+                recommendations={{
+                    summary:
+                        "What to improve: (1) Reword bullets to emphasize step-by-step guidance and defined timelines. (2) Add CRM evidence if you handled customer records and follow-ups. (3) Position telecom support experience as customer journey management.",
+                    skills: ["CRM tracking", "Customer follow-up"],
+                    certifications: [],
+                    projectIdeas: ["Create a 90-day journey workflow"],
+                }}
+            />
+        );
+
+        expect(screen.getByText("What to improve")).not.toBeNull();
+        expect(screen.getByText(/Reword bullets to emphasize step-by-step guidance/i)).not.toBeNull();
+        expect(screen.getAllByRole("listitem").length).toBeGreaterThan(0);
+    });
+
     it("shows a validation error when no resume file is selected", async () => {
         mocks.usePuterStore.mockReturnValue(createStore());
         const user = userEvent.setup();
@@ -102,7 +122,6 @@ describe("UploadForm", () => {
         const view = render(<UploadForm />);
 
         await user.type(view.getByLabelText("Company Name"), "OpenAI");
-        await user.selectOptions(view.getByLabelText("Analysis Mode"), "software");
         await user.type(view.getByLabelText("Job Title"), "Frontend Developer");
         await user.type(view.getByLabelText("Job Description"), "Build React interfaces with strong TypeScript skills");
         await user.upload(view.getByLabelText("Resume uploader"), mocks.acceptedFiles[0]);

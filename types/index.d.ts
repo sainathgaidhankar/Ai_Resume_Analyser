@@ -2,7 +2,7 @@ interface Resume {
     id: string;
     companyName?: string;
     jobTitle?: string;
-    analysisMode?: "software" | "marketing" | "finance" | "data-science";
+    analysisMode?: "general" | string;
     ownerUsername?: string;
     versionGroupId?: string;
     versionNumber?: number;
@@ -56,6 +56,7 @@ interface Feedback {
         category: string;
         question: string;
         rationale: string;
+        answer?: string;
     }[];
     ATS: {
         score: number;

@@ -24,6 +24,12 @@ const InterviewQuestions = ({
                         </div>
                         <p className="mt-4 text-base font-semibold text-slate-900">{item.question}</p>
                         <p className="mt-3 text-sm text-slate-600">{item.rationale}</p>
+                        {item.answer && (
+                            <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sample answer</p>
+                                <p className="mt-2 text-sm text-slate-700">{item.answer}</p>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

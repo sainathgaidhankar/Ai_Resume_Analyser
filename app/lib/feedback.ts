@@ -357,6 +357,10 @@ export const parseFeedbackResponse = (value: string): Feedback => {
                       typeof question.rationale === "string" && question.rationale.trim().length > 0
                           ? question.rationale
                           : "This question helps assess role fit and the depth of your resume claims.",
+                  answer:
+                      typeof question.answer === "string" && question.answer.trim().length > 0
+                          ? question.answer
+                          : undefined,
               }))
             : [],
         ATS: normalizeATS(parsed.ATS),
@@ -392,6 +396,16 @@ export const readFeedbackText = (response: AIResponse | undefined) => {
     return undefined;
 };
 
+const genericMissingResumePhrases = [
+    "resume content was not provided",
+    "resume text not provided",
+    "actual resume content is missing",
+    "resume not included",
+    "paste the full resume text here",
+    "i can’t evaluate match",
+    "i can't evaluate match",
+];
+
 export const hasMeaningfulFeedback = (feedback: Feedback) => {
     const categoryScores = [
         feedback.ATS.score,
@@ -401,6 +415,12 @@ export const hasMeaningfulFeedback = (feedback: Feedback) => {
         feedback.skills.score,
         feedback.jobMatch?.score || 0,
     ];
+
+    const jobMatchSummary = feedback.jobMatch?.summary?.toLowerCase() || "";
+    const sectionSummary = feedback.sectionAnalysis?.summary?.toLowerCase() || "";
+    const genericFallbackDetected = genericMissingResumePhrases.some(
+        (phrase) => jobMatchSummary.includes(phrase) || sectionSummary.includes(phrase)
+    );
 
     const hasNonZeroScore = categoryScores.some((score) => score > 0);
     const hasTips =
@@ -415,7 +435,28 @@ export const hasMeaningfulFeedback = (feedback: Feedback) => {
         (feedback.interviewQuestions?.length || 0) > 0 ||
         Boolean(feedback.recommendations);
 
-    return hasNonZeroScore || hasTips || hasAdvancedContent;
+    return !genericFallbackDetected && (hasNonZeroScore || hasTips || hasAdvancedContent);
+};
+
+export const isZeroedFeedback = (feedback: Feedback) => {
+    const criticalScores = [
+        feedback.overallScore,
+        feedback.jobMatch?.score || 0,
+        feedback.ATS.score,
+        feedback.toneAndStyle.score,
+        feedback.content.score,
+        feedback.structure.score,
+        feedback.skills.score,
+    ];
+
+    const allScoresZero = criticalScores.every((score) => score === 0);
+    const hasAnyStructuredContent =
+        (feedback.rewriteSuggestions?.length || 0) > 0 ||
+        (feedback.impactSuggestions?.length || 0) > 0 ||
+        (feedback.interviewQuestions?.length || 0) > 0 ||
+        (feedback.recommendations ? Object.values(feedback.recommendations).some((value) => Array.isArray(value) ? value.length > 0 : typeof value === "string" && value.trim().length > 0) : false);
+
+    return allScoresZero && !hasAnyStructuredContent;
 };
 
 export const hasAnyPositiveScore = (feedback: Feedback) =>

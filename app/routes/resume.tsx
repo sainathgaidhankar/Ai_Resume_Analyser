@@ -16,6 +16,7 @@ import {buildKeywordPromptBlock, extractTargetKeywords} from "~/lib/jobMatch";
 import {
     hasAnyPositiveScore,
     hasMeaningfulFeedback,
+    isZeroedFeedback,
     parseFeedbackResponse,
     readFeedbackText,
 } from "~/lib/feedback";
@@ -117,8 +118,8 @@ ${buildKeywordPromptBlock(targetKeywords)}`;
                 }
 
                 const recoveredFeedback = parseFeedbackResponse(feedbackText);
-                if (!hasMeaningfulFeedback(recoveredFeedback)) {
-                    throw new Error("The AI recovery response was received, but it did not contain usable feedback.");
+                if (!hasMeaningfulFeedback(recoveredFeedback) || isZeroedFeedback(recoveredFeedback)) {
+                    throw new Error("The AI recovery response was received, but it did not contain usable feedback or the model returned a zeroed result.");
                 }
 
                 const restoredResume = { ...data, feedback: recoveredFeedback };
@@ -172,7 +173,7 @@ ${buildKeywordPromptBlock(targetKeywords)}`;
                     <h2 className="text-4xl !text-black font-bold">Resume Review</h2>
                     {analysisMode && (
                         <p className="mt-2 text-sm font-medium uppercase tracking-wide text-slate-500">
-                            Analysis mode: {analysisMode.replace("-", " ")}
+                            Role assessment: {analysisMode === "general" ? "General" : analysisMode.replace("-", " ")}
                         </p>
                     )}
                     {resumeData && feedback && (
@@ -213,7 +214,6 @@ ${buildKeywordPromptBlock(targetKeywords)}`;
                                 <InterviewQuestions questions={feedback.interviewQuestions} />
                             )}
                             <ATS score={feedback.ATS.score || 0} suggestions={feedback.ATS.tips || []} />
-                            <Details feedback={feedback} />
                         </div>
                     ) : (loadError || error) ? (
                         <StatusPanel

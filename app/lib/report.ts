@@ -133,7 +133,7 @@ const buildReportHtml = ({ resume, feedback }: { resume: Resume; feedback: Feedb
                     <h1>Resumind Analysis Report</h1>
                     <p><strong>Company:</strong> ${escapeHtml(resume.companyName || "N/A")}</p>
                     <p><strong>Job Title:</strong> ${escapeHtml(resume.jobTitle || "N/A")}</p>
-                    <p><strong>Analysis Mode:</strong> ${escapeHtml((resume.analysisMode || "software").replace("-", " "))}</p>
+                    <p><strong>Role Assessment:</strong> ${escapeHtml((resume.analysisMode || "general").replace("-", " ") || "General role analysis")}</p>
                     <p><strong>Version:</strong> ${resume.versionNumber || 1}</p>
                     <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
                 </div>
@@ -166,9 +166,16 @@ const buildReportHtml = ({ resume, feedback }: { resume: Resume; feedback: Feedb
                 </section>
 
                 <section>
-                    <h2>Section Analysis</h2>
-                    <p class="muted">${escapeHtml(feedback.sectionAnalysis?.summary || "No section summary available.")}</p>
-                    ${sectionCards}
+                    <h2>What to Improve</h2>
+                    <div class="card">
+                        <p>${escapeHtml(feedback.sectionAnalysis?.summary || "No key gaps summary available yet.")}</p>
+                    </div>
+                    ${feedback.rewriteSuggestions?.length ? `
+                        <div class="card">
+                            <h3>Top improvements</h3>
+                            <ul>${feedback.rewriteSuggestions.slice(0, 3).map((suggestion) => `<li>${escapeHtml(suggestion.improved)}</li>`).join("")}</ul>
+                        </div>
+                    ` : ""}
                 </section>
 
                 <section>
@@ -189,7 +196,19 @@ const buildReportHtml = ({ resume, feedback }: { resume: Resume; feedback: Feedb
                     </div>
                     <div class="card">
                         <h3>Recommendation Summary</h3>
-                        <p>${escapeHtml(feedback.recommendations?.summary || "No recommendation summary available.")}</p>
+                        ${(() => {
+                            const raw = feedback.recommendations?.summary || "No recommendation summary available.";
+                            const cleaned = raw.replace(/^\s*What to improve\s*:\s*/i, "").trim();
+                            const steps = cleaned ? cleaned.split(/\s*\(\d+\)\s*/).filter(Boolean) : [];
+
+                            if (steps.length > 0) {
+                                return `<ol>${steps
+                                    .map((step) => `<li>${escapeHtml(step.replace(/[\s]+/g, " ").trim())}</li>`)
+                                    .join("")}</ol>`;
+                            }
+
+                            return `<p>${escapeHtml(raw)}</p>`;
+                        })()}
                     </div>
                 </section>
 
@@ -204,30 +223,13 @@ const buildReportHtml = ({ resume, feedback }: { resume: Resume; feedback: Feedb
                                 <h3>${escapeHtml(item.category)}</h3>
                                 <p><strong>Question:</strong> ${escapeHtml(item.question)}</p>
                                 <p><strong>Why it matters:</strong> ${escapeHtml(item.rationale)}</p>
+                                ${item.answer ? `<p><strong>Sample answer:</strong> ${escapeHtml(item.answer)}</p>` : ""}
                             </div>
                         `
                                   )
                                   .join("")
                             : `<p class="muted">No interview questions available.</p>`
                     }
-                </section>
-
-                <section>
-                    <h2>Detailed Feedback</h2>
-                    ${renderTipGroup("Tone & Style", feedback.toneAndStyle.tips)}
-                    ${renderTipGroup("Content", feedback.content.tips)}
-                    ${renderTipGroup("Structure", feedback.structure.tips)}
-                    ${renderTipGroup("Skills", feedback.skills.tips)}
-                </section>
-
-                <section>
-                    <h2>Rewrite Suggestions</h2>
-                    ${rewriteCards}
-                </section>
-
-                <section>
-                    <h2>Impact Suggestions</h2>
-                    ${impactCards}
                 </section>
 
                 <script>

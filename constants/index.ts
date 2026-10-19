@@ -223,15 +223,22 @@ export const AIResponseFormat = `{
   ],
   "recommendations": {
     "skills": ["testing", "system design"],
-    "certifications": ["AWS Certified Developer"],
+    "certifications": [],
     "projectIdeas": ["Build a searchable job tracker", "Add automated resume scoring dashboards"],
-    "summary": "Build more evidence of impact and add one or two supporting technical skills."
+    "summary": "Build more evidence of impact and add one or two supporting technical skills when they align with the JD."
   },
   "interviewQuestions": [
     {
       "category": "Experience",
       "question": "How did you measure the impact of this project?",
-      "rationale": "This checks whether the resume claims are backed by results."
+      "rationale": "This checks whether the resume claims are backed by results.",
+      "answer": "I tracked the result using the actual metrics from the project, such as time saved, process speed, or customer improvement, and I explained the impact clearly in my examples."
+    },
+    {
+      "category": "Behavioral",
+      "question": "Tell me about a time you handled a difficult customer issue.",
+      "rationale": "This checks patience, professionalism, and problem-solving under pressure.",
+      "answer": "I listened carefully, clarified the issue, followed the correct process, and kept the customer informed while resolving the problem step by step."
     }
   ],
   "ATS": { "score": 80, "tips": [{ "type": "good", "tip": "Keyword coverage is decent" }] },
@@ -256,34 +263,57 @@ const ANALYSIS_MODE_GUIDANCE: Record<
 };
 
 export const getAnalysisModeGuidance = (
-    analysisMode: "software" | "marketing" | "finance" | "data-science"
-) => ANALYSIS_MODE_GUIDANCE[analysisMode];
+    analysisMode: string
+) => {
+    const normalized = analysisMode && analysisMode !== "general" ? analysisMode : "general";
+    if (normalized === "general") {
+        return "Compare the full resume against the full job description, responsibilities, and required skills. Score the candidate based on evidence, not a fixed template or role category.";
+    }
+    return `Compare the full resume against the full job description and score the candidate based on actual role evidence. Treat this as a general role analysis rather than a fixed category template.`;
+};
 
 export const prepareInstructions = ({
     jobTitle,
     jobDescription,
     targetKeywords = [],
-    analysisMode = "software",
+    analysisMode = "general",
     compact = false,
 }: {
     jobTitle: string;
     jobDescription: string;
     targetKeywords?: string[];
-    analysisMode?: "software" | "marketing" | "finance" | "data-science";
+    analysisMode?: string;
     compact?: boolean;
-}) =>
-    `You are an expert in ATS (Applicant Tracking System) and resume analysis.
-      Analyze this resume for the target job and return structured JSON only.
-      The analysis mode is: ${analysisMode}
+}) => {
+    return `You are an expert in ATS (Applicant Tracking System) and resume analysis.
+      Analyze the actual resume content against the actual job description and return structured JSON only.
+      Use the uploaded resume file and the extracted resume text as the primary source of truth. Never say the resume is missing, not provided, unreadable, or absent unless the file truly cannot be accessed.
+      If the resume is a PDF, inspect the extracted text first and use it to assess keywords, gaps, and role fit. Do not fall back to generic copy such as "resume content not included" or "I can’t evaluate match because the actual resume content is missing."
+      Do not use a generic template or fixed role category. This is a general-role evaluation for all industries and job functions.
+      Base every score, keyword match, missing requirement, recommendation, and suggestion on evidence from the specific resume and the specific JD.
+      Write all summaries in plain English that a normal recruiter or job seeker can understand without jargon.
+      Keep recommendations practical, short, and easy to act on. Do not add irrelevant details, filler, or generic buzzwords.
+      Focus only on what matters: overall score, job fit against the JD, key gaps, improvement actions, and interview-prep questions.
+      Ignore certificates unless the job description explicitly requires them. If certificates are not required by the JD, do not add them as a major recommendation or score factor.
+      The analysis mode is: general
       Mode guidance: ${getAnalysisModeGuidance(analysisMode)}
       The job title is: ${jobTitle}
       The job description is: ${jobDescription}
       The prioritized target keywords are: ${targetKeywords.join(", ") || "None provided"}
-      Use the prioritized target keywords for matched and missing keyword analysis.
-      Detect major sections such as Summary, Education, Experience, Projects, Skills, and Certifications.
-      Give concise but useful rewrite suggestions, impact suggestions, recommendations, and interview questions.
+      Use the prioritized target keywords for matched and missing keyword analysis, but only if they are relevant to the resume content and JD.
+      Detect major sections such as Summary, Education, Experience, Projects, Skills, and Certifications when relevant; do not invent sections that are not present.
+      Give concise but useful rewrite suggestions, impact suggestions, recommendations, and interview questions that are directly supported by the resume and JD.
+      Keep each tip and explanation brief, practical, and easy to understand. Avoid unnecessary complexity.
+      Never return all-zero scores or empty suggestions just because the resume is weak. Generate a realistic assessment with meaningful content.
+      If a requirement is not mentioned in the JD or not evidenced in the resume, do not invent it. Keep recommendations grounded in the resume and job description only.
+      Never return generic fallback lines such as "Resume content was not provided", "Paste the full resume text here", "resume not included", or any equivalent placeholder wording.
+      Include at least 4 rewrite suggestions, 3 impact suggestions, and 5 interview questions with a short sample answer for each. Make the recommendations highly practical for resume improvement and interview preparation.
+      Write the recommendation summary as a clear "what to improve" note: state the top resume gaps, what to add, what to reword, and how the candidate should position their experience against the JD.
+      Only recommend certifications when the job description explicitly requires them or they are directly relevant to the role. Do not force generic certificates for unrelated roles.
       All score fields must be plain integers from 0 to 100. Do not return scores as strings, percentages, or values like "82/100".
+      Return only the necessary information to make the resume decision clear and actionable. No extra noise.
       ${compact ? "Keep explanations short so the full JSON fits in one response." : "Be detailed but stay concise enough to fit in one JSON response."}
       Use this exact JSON shape:
       ${AIResponseFormat}
       Return valid JSON only. No markdown. No backticks. No extra text.`;
+};

@@ -2,10 +2,10 @@ import {type FormEvent, useState} from 'react'
 import FileUploader from "~/components/FileUploader";
 import {usePuterStore} from "~/lib/puter";
 import {useNavigate} from "react-router";
-import {convertPdfToImage} from "~/lib/pdf2img";
+import {convertPdfToImage, extractPdfText} from "~/lib/pdf2img";
 import {generateUUID} from "~/lib/utils";
 import {prepareInstructions} from "../../constants";
-import {hasMeaningfulFeedback, parseFeedbackResponse} from "~/lib/feedback";
+import {hasMeaningfulFeedback, isZeroedFeedback, parseFeedbackResponse, readFeedbackText} from "~/lib/feedback";
 import {buildKeywordPromptBlock, extractTargetKeywords} from "~/lib/jobMatch";
 import {buildVersionGroupId, getNextVersionNumber} from "~/lib/resumeVersions";
 
@@ -40,13 +40,13 @@ const UploadForm = () => {
         companyName,
         jobTitle,
         jobDescription,
-        analysisMode,
+        analysisMode = "general",
         file,
     }: {
         companyName: string,
         jobTitle: string,
         jobDescription: string,
-        analysisMode: NonNullable<Resume["analysisMode"]>,
+        analysisMode?: NonNullable<Resume["analysisMode"]>,
         file: File
     }) => {
         setIsProcessing(true);
@@ -72,6 +72,7 @@ const UploadForm = () => {
             if(!uploadedImage) throw new Error('Failed to upload image');
 
             setStatusText('Preparing data...');
+            const resumeText = await extractPdfText(file);
             const uuid = generateUUID();
             const data: {
                 id: string;
@@ -98,14 +99,17 @@ const UploadForm = () => {
                 createdAt: new Date().toISOString(),
                 feedback: null,
             }
-            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            const initialSaved = await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            if (!initialSaved) {
+                throw new Error("Failed to save the resume record before analysis.");
+            }
 
             setStatusText('Analyzing...');
 
             const runFeedback = (compact = false) =>
                 withTimeout(
                     ai.feedback(
-                        uploadedFile.path,
+                        [uploadedFile.path, uploadedImage.path].filter(Boolean) as string[],
                         `${prepareInstructions({
                             jobTitle,
                             jobDescription,
@@ -113,6 +117,9 @@ const UploadForm = () => {
                             analysisMode,
                             compact,
                         })}
+
+Resume text extracted from the uploaded PDF, when available:
+${resumeText || "No text could be extracted from the PDF. Use the uploaded PDF and image content as the primary evidence."}
 
 ${buildKeywordPromptBlock(targetKeywords)}`
                     ),
@@ -123,34 +130,39 @@ ${buildKeywordPromptBlock(targetKeywords)}`
             let feedback = await runFeedback(false);
             if (!feedback) throw new Error('Failed to analyze resume');
 
-            const feedbackText = typeof feedback.message.content === 'string'
-                ? feedback.message.content
-                : feedback.message.content[0]?.text;
+            const feedbackText = readFeedbackText(feedback);
+            if (!feedbackText) {
+                console.error("Puter AI response without readable text:", feedback);
+            }
 
-            if (!feedbackText) throw new Error('The AI response was empty');
+            if (!feedbackText) throw new Error('Puter returned a response, but it did not contain readable text.');
 
             let parsedFeedback = parseFeedbackResponse(feedbackText);
 
-            if (!hasMeaningfulFeedback(parsedFeedback)) {
-                setStatusText('Re-running analysis with compact instructions...');
+            if (!hasMeaningfulFeedback(parsedFeedback) || isZeroedFeedback(parsedFeedback)) {
+                setStatusText('AI returned an incomplete result, re-running with stricter guidance...');
                 feedback = await runFeedback(true);
                 if (!feedback) throw new Error('Failed to analyze resume');
 
-                const retryFeedbackText = typeof feedback.message.content === 'string'
-                    ? feedback.message.content
-                    : feedback.message.content[0]?.text;
+                const retryFeedbackText = readFeedbackText(feedback);
+                if (!retryFeedbackText) {
+                    console.error("Puter AI retry response without readable text:", feedback);
+                }
 
-                if (!retryFeedbackText) throw new Error('The AI retry response was empty');
+                if (!retryFeedbackText) throw new Error('Puter retry response did not contain readable text.');
 
                 parsedFeedback = parseFeedbackResponse(retryFeedbackText);
             }
 
-            if (!hasMeaningfulFeedback(parsedFeedback)) {
-                throw new Error('The AI response was incomplete. Please try a shorter resume or job description.');
+            if (!hasMeaningfulFeedback(parsedFeedback) || isZeroedFeedback(parsedFeedback)) {
+                throw new Error('The AI response was incomplete or too sparse. Please try a shorter resume or job description and regenerate the analysis.');
             }
 
             data.feedback = parsedFeedback;
-            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            const savedWithFeedback = await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            if (!savedWithFeedback) {
+                throw new Error("Analysis completed, but the result could not be saved.");
+            }
             setStatusText('Analysis complete, redirecting...');
             navigate(`/resume/${uuid}`);
         } catch (error) {
@@ -167,7 +179,7 @@ ${buildKeywordPromptBlock(targetKeywords)}`
         const formData = new FormData(form);
 
         const companyName = ((formData.get('company-name') as string) || '').trim();
-        const analysisMode = ((formData.get('analysis-mode') as string) || 'software') as NonNullable<Resume["analysisMode"]>;
+        const analysisMode = 'general' as NonNullable<Resume["analysisMode"]>;
         const jobTitle = ((formData.get('job-title') as string) || '').trim();
         const jobDescription = ((formData.get('job-description') as string) || '').trim();
 
@@ -205,15 +217,6 @@ ${buildKeywordPromptBlock(targetKeywords)}`
                     <div className="form-div">
                         <label htmlFor="company-name">Company Name</label>
                         <input type="text" name="company-name" placeholder="Company Name" id="company-name" />
-                    </div>
-                    <div className="form-div">
-                        <label htmlFor="analysis-mode">Analysis Mode</label>
-                        <select name="analysis-mode" id="analysis-mode" defaultValue="software">
-                            <option value="software">Software</option>
-                            <option value="marketing">Marketing</option>
-                            <option value="finance">Finance</option>
-                            <option value="data-science">Data Science</option>
-                        </select>
                     </div>
                     <div className="form-div">
                         <label htmlFor="job-title">Job Title</label>

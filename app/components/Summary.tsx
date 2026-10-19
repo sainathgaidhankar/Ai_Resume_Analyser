@@ -21,7 +21,16 @@ const Category = ({ title, score }: { title: string, score: number }) => {
     )
 }
 
+const getScoreLabel = (score: number) => {
+    if (score >= 80) return "Strong fit";
+    if (score >= 60) return "Good fit";
+    if (score >= 40) return "Needs work";
+    return "Low fit";
+};
+
 const Summary = ({ feedback }: { feedback: Feedback }) => {
+    const overallLabel = getScoreLabel(feedback.overallScore);
+
     return (
         <div className="bg-white rounded-2xl shadow-md w-full">
             <div className="flex flex-row items-center p-4 gap-8">
@@ -29,8 +38,9 @@ const Summary = ({ feedback }: { feedback: Feedback }) => {
 
                 <div className="flex flex-col gap-2">
                     <h2 className="text-2xl font-bold">Your Resume Score</h2>
+                    <p className="text-sm font-semibold text-slate-700">{overallLabel}</p>
                     <p className="text-sm text-gray-500">
-                        This score is calculated based on the variables listed below.
+                        This score reflects how well the resume matches the target role and job requirements.
                     </p>
                 </div>
             </div>
